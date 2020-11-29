@@ -72,9 +72,10 @@ bool deathtrap::open(const QString& name, const QString &dbFolderPath)
 void deathtrap::close(const QString& name)
 {
     QSqlDatabase::database(name).close();
+    QSqlDatabase::removeDatabase(name);
 }
 
-int deathtrap::get_version(const QString& name)
+int deathtrap::getVersion(const QString& name)
 {
     QSqlQuery q{"select * from version", QSqlDatabase::database(name)};
 
@@ -87,4 +88,30 @@ int deathtrap::get_version(const QString& name)
 QSet<int> deathtrap::supported_versions()
 {
     return {419};
+}
+
+std::pair<QStringList, QStringList> deathtrap::getFileLocations(const QString &name)
+{
+    std::pair<QStringList, QStringList> result;
+
+    //file locations first, then thumbs
+    QSqlQuery q{"select location from client_files_locations order by prefix", QSqlDatabase::database(name)};
+
+    if(!q.exec()) return {};
+
+    for(int i = 0; i < 256; i++)
+    {
+        if(!q.next()) break;
+        result.first.append(q.value(0).toString());
+    }
+
+    for(int i = 0; i < 256; i++)
+    {
+        if(!q.next()) break;
+        result.second.append(q.value(0).toString());
+    }
+
+    if(result.second.length() != 256 || result.first.length() != 256) return {};
+
+    return result;
 }

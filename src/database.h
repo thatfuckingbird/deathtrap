@@ -31,5 +31,6 @@ namespace deathtrap
     bool open(const QString& name, const QString& dbFolderPath);
     void close(const QString& name);
 
-    int get_version(const QString& name);
+    int getVersion(const QString& name);
+    std::pair<QStringList, QStringList> getFileLocations(const QString& name);
 }

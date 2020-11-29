@@ -29,5 +29,6 @@ private slots:
     void init();
     void cleanup();
 
-    void testVersion();
+    void test_getVersion();
+    void test_getFileLocations();
 };

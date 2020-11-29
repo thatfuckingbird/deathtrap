@@ -25,4 +25,4 @@ HEADERS += \
     src/wsserver.h \
     src/wsclient.h \
     src/wsmessage.h \
-    test/test.h
+    test/main.h

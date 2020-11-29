@@ -140,7 +140,7 @@ void deathtrap::DatabaseWorker::run()
     {
         case deathtrap::MessageType::DatabaseVersion:
             writer.append(static_cast<quint64>(deathtrap::MessageType::DatabaseVersion));
-            writer.append(deathtrap::get_version(dbName));
+            writer.append(deathtrap::getVersion(dbName));
             break;
         default:
             qWarning() << "Invalid message type";

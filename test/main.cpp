@@ -20,7 +20,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 // PVS-Studio Static Code Analyzer for C, C++, C#, and Java: http://www.viva64.com
 
 #include <QCoreApplication>
-#include "test.h"
+#include "main.h"
 #include "database.h"
 
 void DatabaseTests::init()
@@ -33,9 +33,17 @@ void DatabaseTests::cleanup()
     deathtrap::close("testDB");
 }
 
-void DatabaseTests::testVersion()
+void DatabaseTests::test_getVersion()
 {
-    QCOMPARE(deathtrap::get_version("testDB"), 419);
+    QCOMPARE(deathtrap::getVersion("testDB"), 419);
+}
+
+void DatabaseTests::test_getFileLocations()
+{
+    QCOMPARE(deathtrap::getFileLocations("testDB").first.length(), 256);
+    QCOMPARE(deathtrap::getFileLocations("testDB").second.length(), 256);
+    QCOMPARE(deathtrap::getFileLocations("testDB").first[0], "client_files_alt_location");
+    QCOMPARE(deathtrap::getFileLocations("testDB").first[1], "client_files");
 }
 
 QTEST_MAIN(DatabaseTests)
