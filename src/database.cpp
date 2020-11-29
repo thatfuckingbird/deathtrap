@@ -85,7 +85,7 @@ int deathtrap::getVersion(const QString& name)
     return q.value(0).toInt();
 }
 
-QSet<int> deathtrap::supported_versions()
+QSet<int> deathtrap::supportedVersions()
 {
     return {419};
 }

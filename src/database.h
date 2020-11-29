@@ -26,7 +26,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 namespace deathtrap
 {
-    QSet<int> supported_versions();
+    QSet<int> supportedVersions();
 
     bool open(const QString& name, const QString& dbFolderPath);
     void close(const QString& name);
