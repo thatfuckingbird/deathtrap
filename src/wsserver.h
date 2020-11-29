@@ -22,9 +22,38 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <QWebSocketServer>
 #include <QWebSocket>
 #include <QString>
+#include <QRunnable>
+#include <atomic>
 
 namespace deathtrap
 {
+    class WSServer;
+
+    class DatabaseWorkerSignalEmitter : public QObject
+    {
+        Q_OBJECT
+    public:
+        DatabaseWorkerSignalEmitter(QObject* parent) : QObject{parent} {
+            setObjectName("emitter"); //TODO: document this shit
+        }
+        virtual ~DatabaseWorkerSignalEmitter();
+
+    signals:
+        void finished(QWebSocket* targetSocket, const QByteArray& result);
+    };
+
+    class DatabaseWorker : public QRunnable
+    {
+    public:
+        DatabaseWorker(WSServer* server, QWebSocket* targetSocket, const QByteArray&& incomingMessage) : m_server(server), m_targetSocket(targetSocket), m_incomingMessage(incomingMessage) {}
+        virtual void run() override;
+
+    private:
+        WSServer* m_server;
+        QWebSocket* m_targetSocket;
+        QByteArray m_incomingMessage;
+    };
+
     class WSServer : public QWebSocketServer
     {
         Q_OBJECT
@@ -32,6 +61,10 @@ namespace deathtrap
     public:
         WSServer(const QString& dbFolderPath, const QString& serverName, QWebSocketServer::SslMode secureMode, QObject *parent = nullptr);
         virtual ~WSServer();
+        friend class DatabaseWorker;
+
+    public slots:
+        void deliverReply(QWebSocket* targetSocket, const QByteArray& reply);
 
     private slots:
         void handleNewConnection();
@@ -41,6 +74,6 @@ namespace deathtrap
     private:
         QString m_dbFolderPath;
         QSet<QWebSocket*> m_sockets;
-        static int m_connectionCounter;
+        static std::atomic_int m_connectionCounter;
     };
 }

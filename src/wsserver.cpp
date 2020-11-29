@@ -25,11 +25,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <QCborStreamReader>
 #include <QCborStreamWriter>
 #include <QCborValue>
+#include <QThreadPool>
 
-int deathtrap::WSServer::m_connectionCounter = 0;
+std::atomic_int deathtrap::WSServer::m_connectionCounter = 0;
 
 deathtrap::WSServer::WSServer(const QString& dbFolderPath, const QString& serverName, QWebSocketServer::SslMode secureMode, QObject *parent) : QWebSocketServer{serverName, secureMode, parent}, m_dbFolderPath(dbFolderPath)
 {
+    QThreadPool::globalInstance()->setExpiryTimeout(-1);
     connect(this, &WSServer::newConnection, this, &WSServer::handleNewConnection);
 }
 
@@ -43,30 +45,69 @@ deathtrap::WSServer::~WSServer()
     }
 }
 
+void deathtrap::WSServer::deliverReply(QWebSocket *targetSocket, const QByteArray &reply)
+{
+    if(m_sockets.contains(targetSocket))
+    {
+        if(targetSocket->sendBinaryMessage(reply) != reply.size())
+        {
+            qWarning() << "Failed to write data to socket";
+        }
+    }
+}
+
 void deathtrap::WSServer::handleNewConnection()
 {
     QWebSocket* socket = nextPendingConnection();
-    QString dbName = QString::number(m_connectionCounter++);
-    if(deathtrap::open(dbName, m_dbFolderPath))
-    {
-        socket->setProperty("dbName", dbName);
-        m_sockets.insert(socket);
-        connect(socket, &QWebSocket::binaryMessageReceived, this, &WSServer::handleBinaryMessage);
-        connect(socket, &QWebSocket::disconnected, this, &WSServer::handleSocketDisconnected);
-    } else
-    {
-        socket->close(QWebSocketProtocol::CloseCodeAbnormalDisconnection);
-        deathtrap::close(dbName);
-        socket->deleteLater();
-    }
+    m_sockets.insert(socket);
+    connect(socket, &QWebSocket::binaryMessageReceived, this, &WSServer::handleBinaryMessage);
+    connect(socket, &QWebSocket::disconnected, this, &WSServer::handleSocketDisconnected);
 }
 
 void deathtrap::WSServer::handleBinaryMessage(const QByteArray &message)
 {
     QWebSocket* socket = dynamic_cast<QWebSocket*>(QObject::sender());
-    const QString dbName = socket->property("dbName").toString();
+    QRunnable* dbWorker = new DatabaseWorker{this, socket, std::move(message)};
+    QThreadPool::globalInstance()->start(dbWorker);
+}
 
-    QCborStreamReader reader(message);
+void deathtrap::WSServer::handleSocketDisconnected()
+{
+    QWebSocket* sender = dynamic_cast<QWebSocket*>(QObject::sender());
+    m_sockets.remove(sender);
+    sender->close();
+    deathtrap::close(sender->property("dbName").toString());
+    sender->deleteLater();
+}
+
+//TODO: document this shit
+void deathtrap::DatabaseWorker::run()
+{
+    QThread* currentThread = QThread::currentThread();
+
+    DatabaseWorkerSignalEmitter* emitter = currentThread->findChild<DatabaseWorkerSignalEmitter*>("emitter", Qt::FindDirectChildrenOnly);
+    if(!emitter)
+    {
+        emitter = new DatabaseWorkerSignalEmitter{currentThread};
+    }
+    QObject::connect(emitter, &DatabaseWorkerSignalEmitter::finished, m_server, &WSServer::deliverReply, Qt::UniqueConnection);
+
+    bool needToOpenDB = false;
+    if(!currentThread->property("dbName").isValid())
+    {
+        currentThread->setProperty("dbName", "wsserver_db_" + QString::number(WSServer::m_connectionCounter++));
+        needToOpenDB = true;
+    }
+    QString dbName = currentThread->property("dbName").toString();
+    if(needToOpenDB)
+    {
+        if(!deathtrap::open(dbName, m_server->m_dbFolderPath))
+        {
+            //TODO report error and/or kill socket
+        }
+    }
+
+    QCborStreamReader reader{m_incomingMessage};
     deathtrap::MessageType msgType = deathtrap::MessageType::Invalid;
 
     if(reader.next())
@@ -106,17 +147,15 @@ void deathtrap::WSServer::handleBinaryMessage(const QByteArray &message)
             return;
     }
 
-    if(socket->sendBinaryMessage(result) != result.size())
-    {
-        qWarning() << "Failed to write data to socket";
-    }
+    emit emitter->finished(m_targetSocket, result);
 }
 
-void deathtrap::WSServer::handleSocketDisconnected()
+//TODO: document this shit
+deathtrap::DatabaseWorkerSignalEmitter::~DatabaseWorkerSignalEmitter()
 {
-    QWebSocket* sender = dynamic_cast<QWebSocket*>(QObject::sender());
-    m_sockets.remove(sender);
-    sender->close();
-    deathtrap::close(sender->property("dbName").toString());
-    sender->deleteLater();
+    QThread* thread = dynamic_cast<QThread*>(parent());
+    if(thread && thread->property("dbName").isValid())
+    {
+        deathtrap::close(thread->property("dbName").toString());
+    }
 }
