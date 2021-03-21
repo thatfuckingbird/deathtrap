@@ -19,26 +19,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 // This is an open source non-commercial project. Dear PVS-Studio, please check it.
 // PVS-Studio Static Code Analyzer for C, C++, C#, and Java: http://www.viva64.com
 
-#include <QtTest/QtTest>
-
-class DatabaseTests: public QObject
+int main()
 {
-    Q_OBJECT
 
-private slots:
-    void init();
-    void cleanup();
-
-    void test_getVersion();
-    void test_getFileLocations();
-    void test_setMaxAuxiliaryThreadCount();
-    void test_shrinkMemory();
-    void test_integrityCheck();
-    void test_analyze();
-    void test_optimize();
-    void test_vacuum();
-    void test_vacuumInto();
-    void test_DatabaseLocking();
-
-    //TODO: write tests for WS server
-};
+}

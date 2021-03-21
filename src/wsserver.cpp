@@ -37,7 +37,7 @@ deathtrap::WSServer::WSServer(const QString& dbFolderPath, const QString& server
 
 deathtrap::WSServer::~WSServer()
 {
-    for(QWebSocket* socket : m_sockets)
+    for(QWebSocket* socket : std::as_const(m_sockets))
     {
         socket->close();
         deathtrap::close(socket->property("dbName").toString());
@@ -67,7 +67,7 @@ void deathtrap::WSServer::handleNewConnection()
 void deathtrap::WSServer::handleBinaryMessage(const QByteArray &message)
 {
     QWebSocket* socket = dynamic_cast<QWebSocket*>(QObject::sender());
-    QRunnable* dbWorker = new DatabaseWorker{this, socket, std::move(message)};
+    QRunnable* dbWorker = new DatabaseWorker{this, socket, message};
     QThreadPool::globalInstance()->start(dbWorker);
 }
 
@@ -109,6 +109,7 @@ void deathtrap::DatabaseWorker::run()
 
     QCborStreamReader reader{m_incomingMessage};
     deathtrap::MessageType msgType = deathtrap::MessageType::Invalid;
+    quint64 msgId = 0;
 
     if(reader.next())
     {
@@ -125,6 +126,15 @@ void deathtrap::DatabaseWorker::run()
 
     if(reader.next() && reader.type() == QCborStreamReader::UnsignedInteger)
     {
+        msgId = reader.toUnsignedInteger();
+    } else
+    {
+        qWarning() << "Missing message ID";
+        return;
+    }
+
+    if(reader.next() && reader.type() == QCborStreamReader::UnsignedInteger)
+    {
         msgType = static_cast<deathtrap::MessageType>(reader.toUnsignedInteger());
     } else
     {
@@ -135,19 +145,96 @@ void deathtrap::DatabaseWorker::run()
     QByteArray result;
     QCborStreamWriter writer(&result);
     writer.append(NETWORK_PROTOCOL_VERSION);
+    writer.append(msgId);
+    writer.append(static_cast<quint64>(msgType));
 
     switch(msgType)
     {
-        case deathtrap::MessageType::DatabaseVersion:
-            writer.append(static_cast<quint64>(deathtrap::MessageType::DatabaseVersion));
-            writer.append(deathtrap::getVersion(dbName));
-            break;
-        default:
-            qWarning() << "Invalid message type";
-            return;
+    case deathtrap::MessageType::GetVersion:
+        writer.append(deathtrap::getVersion(dbName));
+        break;
+    case deathtrap::MessageType::GetFileLocations:
+    {
+        const auto locs = deathtrap::getFileLocations(dbName);
+        writer.startArray();
+        for(const auto& loc : locs.first)
+        {
+            writer.append(loc);
+        }
+        writer.endArray();
+        writer.startArray();
+        for(const auto& loc : locs.second)
+        {
+            writer.append(loc);
+        }
+        writer.endArray();
+        break;
+    }
+    case deathtrap::MessageType::IntegrityCheck:
+    {
+        bool quick = false;
+        if(reader.next() && reader.type() == QCborStreamReader::SimpleType)
+        {
+            quick = reader.toSimpleType() == QCborSimpleType::True;
+        }
+        const auto res = deathtrap::maintenance::integrityCheck(dbName, quick);
+        writer.startArray();
+        for(const auto& str: res)
+        {
+            writer.append(str);
+        }
+        writer.endArray();
+        break;
+    }
+    case deathtrap::MessageType::Analyze:
+        writer.append(deathtrap::maintenance::analyze(dbName));
+        break;
+    case deathtrap::MessageType::Optimize:
+        writer.append(deathtrap::maintenance::optimize(dbName));
+        break;
+    case deathtrap::MessageType::Vacuum:
+        writer.append(deathtrap::maintenance::vacuum(dbName));
+        break;
+    case deathtrap::MessageType::VacuumInto:
+    {
+        QString targetDir;
+        if(reader.next() && reader.type() == QCborStreamReader::String)
+        {
+            targetDir = readString(reader);//TODO return optional
+        }
+        if(!targetDir.isEmpty())//TODO: what to write if its empty/invalid?
+        {
+            writer.append(deathtrap::maintenance::vacuumInto(dbName, targetDir));
+        }
+        break;
+    }
+    case deathtrap::MessageType::TryLockDatabase:
+        writer.append(deathtrap::maintenance::tryLockDatabase(dbName));
+        break;
+    case deathtrap::MessageType::ReleaseLockedDatabase:
+        writer.append(deathtrap::maintenance::releaseLockedDatabase());
+        break;
+    default:
+        qWarning() << "Invalid message type";
+        return;
     }
 
     emit emitter->finished(m_targetSocket, result);
+}
+
+QString deathtrap::DatabaseWorker::readString(QCborStreamReader &reader)
+{
+    QString result;
+    auto r = reader.readString();
+    while (r.status == QCborStreamReader::Ok) {
+        result += r.data;
+        r = reader.readString();
+    }
+
+    if (r.status == QCborStreamReader::Error) {
+        result.clear();
+    }
+    return result;
 }
 
 //TODO: document this shit

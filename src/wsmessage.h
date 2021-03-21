@@ -26,6 +26,14 @@ namespace deathtrap
     enum class MessageType : std::uint32_t
     {
         Invalid,
-        DatabaseVersion
+        GetVersion,
+        GetFileLocations,
+        IntegrityCheck,
+        Analyze,
+        Optimize,
+        Vacuum,
+        VacuumInto,
+        TryLockDatabase,
+        ReleaseLockedDatabase
     };
 }

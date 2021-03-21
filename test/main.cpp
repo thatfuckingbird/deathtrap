@@ -20,6 +20,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 // PVS-Studio Static Code Analyzer for C, C++, C#, and Java: http://www.viva64.com
 
 #include <QCoreApplication>
+#include <QDir>
 #include "main.h"
 #include "database.h"
 
@@ -44,6 +45,74 @@ void DatabaseTests::test_getFileLocations()
     QCOMPARE(deathtrap::getFileLocations("testDB").second.length(), 256);
     QCOMPARE(deathtrap::getFileLocations("testDB").first[0], "client_files_alt_location");
     QCOMPARE(deathtrap::getFileLocations("testDB").first[1], "client_files");
+}
+
+void DatabaseTests::test_setMaxAuxiliaryThreadCount()
+{
+    QVERIFY(deathtrap::maintenance::setMaxAuxiliaryThreadCount("testDB", 5));
+    QVERIFY(deathtrap::maintenance::setMaxAuxiliaryThreadCount("testDB", 0));
+    QVERIFY(deathtrap::maintenance::setMaxAuxiliaryThreadCount("testDB", 5));
+}
+
+void DatabaseTests::test_shrinkMemory()
+{
+    QVERIFY(deathtrap::maintenance::shrinkMemory("testDB"));
+}
+
+void DatabaseTests::test_integrityCheck()
+{
+    QStringList expected = {"ok", "ok", "ok", "ok"};
+    QCOMPARE(deathtrap::maintenance::integrityCheck("testDB", false), expected);
+    QCOMPARE(deathtrap::maintenance::integrityCheck("testDB", true), expected);
+}
+
+void DatabaseTests::test_analyze()
+{
+    QVERIFY(deathtrap::maintenance::analyze("testDB"));
+}
+
+void DatabaseTests::test_optimize()
+{
+    QVERIFY(deathtrap::maintenance::optimize("testDB"));
+}
+
+void DatabaseTests::test_vacuum()
+{
+    QVERIFY(deathtrap::maintenance::vacuum("testDB"));
+}
+
+void DatabaseTests::test_vacuumInto()
+{
+    const auto dbNames = {"main", "external_caches", "external_mappings", "external_master"};
+
+    for(const auto& name: dbNames)
+    {
+        QString fName = (QDir::tempPath()+"/client_%1.db").arg(name);
+        if(QFile::exists(fName)) QFile::remove(fName);
+    }
+
+    QVERIFY(deathtrap::maintenance::vacuumInto("testDB", QDir::tempPath()));
+
+    for(const auto& name: dbNames)
+    {
+        QString fName = (QDir::tempPath()+"/client_%1.db").arg(name);
+        QVERIFY(QFile::exists(fName));
+    }
+
+    for(const auto& name: dbNames)
+    {
+        QString fName = (QDir::tempPath()+"/client_%1.db").arg(name);
+        if(QFile::exists(fName)) QFile::remove(fName);
+    }
+}
+
+void DatabaseTests::test_DatabaseLocking()
+{
+    QVERIFY(!deathtrap::maintenance::releaseLockedDatabase());
+    QVERIFY(deathtrap::maintenance::tryLockDatabase("testDB"));
+    QVERIFY(!deathtrap::maintenance::tryLockDatabase("testDB"));
+    QVERIFY(deathtrap::maintenance::releaseLockedDatabase());
+    QVERIFY(!deathtrap::maintenance::releaseLockedDatabase());
 }
 
 QTEST_MAIN(DatabaseTests)

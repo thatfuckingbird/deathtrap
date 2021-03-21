@@ -26,11 +26,42 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 namespace deathtrap
 {
+    enum class PragmaSynchronous
+    {
+        Off = 0,
+        Normal = 1,
+        Full = 2,
+        Extra = 3
+    };
+
+    enum class PragmaJournalMode
+    {
+        Delete,
+        Truncate,
+        Persist,
+        Memory,
+        WAL,
+        Off
+    };
+
     QSet<int> supportedVersions();
 
-    bool open(const QString& name, const QString& dbFolderPath);
+    bool open(const QString& name, const QString& dbFolderPath, PragmaSynchronous synchronous = PragmaSynchronous::Full, PragmaJournalMode journalMode = PragmaJournalMode::WAL);
     void close(const QString& name);
 
     int getVersion(const QString& name);
     std::pair<QStringList, QStringList> getFileLocations(const QString& name);
+
+    namespace maintenance
+    {
+        bool setMaxAuxiliaryThreadCount(const QString& name, uint16_t count);
+        bool shrinkMemory(const QString& name);
+        QStringList integrityCheck(const QString& name, bool quick = false);
+        bool analyze(const QString& name);
+        bool optimize(const QString& name);
+        bool vacuum(const QString& name);
+        bool vacuumInto(const QString& name, const QString& targetDirectory);
+        bool tryLockDatabase(const QString& name);
+        bool releaseLockedDatabase();
+    }
 }

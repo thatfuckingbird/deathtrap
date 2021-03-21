@@ -25,6 +25,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <QRunnable>
 #include <atomic>
 
+class QCborStreamReader;
+
 namespace deathtrap
 {
     class WSServer;
@@ -45,13 +47,14 @@ namespace deathtrap
     class DatabaseWorker : public QRunnable
     {
     public:
-        DatabaseWorker(WSServer* server, QWebSocket* targetSocket, const QByteArray&& incomingMessage) : m_server(server), m_targetSocket(targetSocket), m_incomingMessage(incomingMessage) {}
+        DatabaseWorker(WSServer* server, QWebSocket* targetSocket, const QByteArray& incomingMessage) : m_server(server), m_targetSocket(targetSocket), m_incomingMessage(incomingMessage) {}
         virtual void run() override;
 
     private:
         WSServer* m_server;
         QWebSocket* m_targetSocket;
         QByteArray m_incomingMessage;
+        static QString readString(QCborStreamReader& reader);
     };
 
     class WSServer : public QWebSocketServer
