@@ -28,6 +28,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <QSqlError>
 #include <QDebug>
 
+constexpr auto SUPPORTED_VERSIONS = {433};
 constexpr int SQLITE_BUSY_TIMEOUT = 1000 * 60 * 60 * 24 * 7; //A week of timeout should really be enough
 
 bool deathtrap::open(const QString& name, const QString &dbFolderPath)
@@ -87,7 +88,7 @@ int deathtrap::getVersion(const QString& name)
 
 QSet<int> deathtrap::supportedVersions()
 {
-    return {419};
+    return SUPPORTED_VERSIONS;
 }
 
 std::pair<QStringList, QStringList> deathtrap::getFileLocations(const QString &name)

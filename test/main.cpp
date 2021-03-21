@@ -35,7 +35,7 @@ void DatabaseTests::cleanup()
 
 void DatabaseTests::test_getVersion()
 {
-    QCOMPARE(deathtrap::getVersion("testDB"), 419);
+    QCOMPARE(deathtrap::getVersion("testDB"), 433);
 }
 
 void DatabaseTests::test_getFileLocations()
